@@ -1,6 +1,6 @@
-namespace dao;
+namespace db.dao;
 
-public class BattlePlayer
+public class Player
 {
     //金币
     public int coin = 0;

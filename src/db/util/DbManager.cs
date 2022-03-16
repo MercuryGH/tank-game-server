@@ -1,81 +1,76 @@
-namespace util;
+namespace db.util;
 
 using System;
 using MySql.Data.MySqlClient;
 using System.Text.RegularExpressions;
 using System.Text.Json;
-using dao;
+using db.dao;
 
 public class DbManager
 {
-    public static MySqlConnection mysql;
+    public static MySqlConnection conn;
 
-    //连接mysql数据库
     public static bool Connect(string db, string ip, int port, string user, string pw)
     {
-        //创建MySqlConnection对象
-        mysql = new MySqlConnection();
-        //连接参数
-        string s = string.Format("Database={0};Data Source={1}; port={2};User Id={3}; Password={4}",
+        conn = new MySqlConnection();
+        // 连接参数
+        string s = string.Format("Database={0}; Data Source={1}; port={2}; User Id={3}; Password={4}",
                            db, ip, port, user, pw);
-        mysql.ConnectionString = s;
-        //连接
+        conn.ConnectionString = s;
+
         try
         {
-            mysql.Open();
-            Console.WriteLine("[数据库]connect succ ");
+            conn.Open();
+            Console.WriteLine("[DB] connection success!");
 
             return true;
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库]connect fail, " + e.Message);
+            Console.WriteLine("[DB] connection failed! " + e.Message);
             return false;
         }
     }
 
-    //测试并重连
     private static void CheckAndReconnect()
     {
         try
         {
-            if (mysql.Ping())
+            if (conn.Ping() == true)
             {
                 return;
             }
-            mysql.Close();
-            mysql.Open();
-            Console.WriteLine("[数据库] Reconnect!");
+            conn.Close();
+            conn.Open();
+            Console.WriteLine("[DB] Reconnect!");
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] CheckAndReconnect fail " + e.Message);
+            Console.WriteLine("[DB] CheckAndReconnect fail " + e.Message);
         }
-
     }
 
-    //判定安全字符串
+    // 判定安全字符串
     private static bool IsSafeString(string str)
     {
         return !Regex.IsMatch(str, @"[-|;|,|\/|\(|\)|\[|\]|\}|\{|%|@|\*|!|\']");
     }
 
-
     //是否存在该用户
-    public static bool IsAccountExist(string id)
+    public static bool ExistAccount(string id)
     {
         CheckAndReconnect();
-        //防sql注入
         if (!DbManager.IsSafeString(id))
         {
             return false;
         }
+
         //sql语句
-        string s = string.Format("select * from account where id='{0}';", id);
+        string s = string.Format("select * from account where id = '{0}';", id);
         //查询
         try
         {
-            MySqlCommand cmd = new MySqlCommand(s, mysql);
+            MySqlCommand cmd = new MySqlCommand(s, conn);
             MySqlDataReader dataReader = cmd.ExecuteReader();
             bool hasRows = dataReader.HasRows;
             dataReader.Close();
@@ -83,73 +78,64 @@ public class DbManager
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] IsSafeString err, " + e.Message);
+            Console.WriteLine("[DB] ExistAccount err, " + e.Message);
             return false;
         }
     }
 
-    //注册
     public static bool Register(string id, string pw)
     {
         CheckAndReconnect();
-        //防sql注入
-        if (!DbManager.IsSafeString(id))
+        if (!IsSafeString(id) || !IsSafeString(pw))
         {
-            Console.WriteLine("[数据库] Register fail, id not safe");
+            Console.WriteLine("[DB] Register fail, id or pw not safe");
             return false;
         }
-        if (!DbManager.IsSafeString(pw))
+
+        if (!ExistAccount(id))
         {
-            Console.WriteLine("[数据库] Register fail, pw not safe");
+            Console.WriteLine("[DB] Register fail, id exist");
             return false;
         }
-        //能否注册
-        if (!IsAccountExist(id))
-        {
-            Console.WriteLine("[数据库] Register fail, id exist");
-            return false;
-        }
-        //写入数据库User表
-        string sql = string.Format("insert into account set id ='{0}' ,pw ='{1}';", id, pw);
+        
+        string sql = string.Format("insert into account set id ='{0}', pw ='{1}';", id, pw);
         try
         {
-            MySqlCommand cmd = new MySqlCommand(sql, mysql);
+            MySqlCommand cmd = new MySqlCommand(sql, conn);
             cmd.ExecuteNonQuery();
             return true;
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] Register fail " + e.Message);
+            Console.WriteLine("[DB] Register failed " + e.Message);
             return false;
         }
     }
 
-
-    //创建角色
     public static bool CreatePlayer(string id)
     {
         CheckAndReconnect();
         //防sql注入
         if (!DbManager.IsSafeString(id))
         {
-            Console.WriteLine("[数据库] CreatePlayer fail, id not safe");
+            Console.WriteLine("[DB] CreatePlayer fail, id not safe");
             return false;
         }
         //序列化
         // PlayerData playerData = new PlayerData();
         // string data = Js.Serialize(playerData);
-        //写入数据库
+        //写入DB
         // string sql = string.Format("insert into player set id ='{0}' ,data ='{1}';", id, data);
         string sql = "123";
         try
         {
-            MySqlCommand cmd = new MySqlCommand(sql, mysql);
+            MySqlCommand cmd = new MySqlCommand(sql, conn);
             cmd.ExecuteNonQuery();
             return true;
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] CreatePlayer err, " + e.Message);
+            Console.WriteLine("[DB] CreatePlayer err, " + e.Message);
             return false;
         }
     }
@@ -162,12 +148,12 @@ public class DbManager
         //防sql注入
         if (!DbManager.IsSafeString(id))
         {
-            Console.WriteLine("[数据库] CheckPassword fail, id not safe");
+            Console.WriteLine("[DB] CheckPassword fail, id not safe");
             return false;
         }
         if (!DbManager.IsSafeString(pw))
         {
-            Console.WriteLine("[数据库] CheckPassword fail, pw not safe");
+            Console.WriteLine("[DB] CheckPassword fail, pw not safe");
             return false;
         }
         //查询
@@ -175,7 +161,7 @@ public class DbManager
 
         try
         {
-            MySqlCommand cmd = new MySqlCommand(sql, mysql);
+            MySqlCommand cmd = new MySqlCommand(sql, conn);
             MySqlDataReader dataReader = cmd.ExecuteReader();
             bool hasRows = dataReader.HasRows;
             dataReader.Close();
@@ -183,7 +169,7 @@ public class DbManager
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] CheckPassword err, " + e.Message);
+            Console.WriteLine("[DB] CheckPassword err, " + e.Message);
             return false;
         }
     }
@@ -196,7 +182,7 @@ public class DbManager
         //防sql注入
         if (!DbManager.IsSafeString(id))
         {
-            Console.WriteLine("[数据库] GetPlayerData fail, id not safe");
+            Console.WriteLine("[DB] GetPlayerData fail, id not safe");
             return null;
         }
 
@@ -205,7 +191,7 @@ public class DbManager
         try
         {
             //查询
-            MySqlCommand cmd = new MySqlCommand(sql, mysql);
+            MySqlCommand cmd = new MySqlCommand(sql, conn);
             MySqlDataReader dataReader = cmd.ExecuteReader();
             if (!dataReader.HasRows)
             {
@@ -224,7 +210,7 @@ public class DbManager
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] GetPlayerData fail, " + e.Message);
+            Console.WriteLine("[DB] GetPlayerData fail, " + e.Message);
             return null;
         }
     }
@@ -242,13 +228,13 @@ public class DbManager
         //更新
         try
         {
-            MySqlCommand cmd = new MySqlCommand(sql, mysql);
+            MySqlCommand cmd = new MySqlCommand(sql, conn);
             cmd.ExecuteNonQuery();
             return true;
         }
         catch (Exception e)
         {
-            Console.WriteLine("[数据库] UpdatePlayerData err, " + e.Message);
+            Console.WriteLine("[DB] UpdatePlayerData err, " + e.Message);
             return false;
         }
     }

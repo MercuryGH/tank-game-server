@@ -1,5 +1,4 @@
-namespace protocol;
-
+namespace network.protocol;
 public sealed class MsgPing : BaseMsg
 {
     public MsgPing() { protoName = "MsgPing"; }

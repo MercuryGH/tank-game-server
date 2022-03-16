@@ -1,10 +1,9 @@
-namespace protocol;
+namespace network.protocol;
 using System.Text.Json;
 
 public class BaseMsg
 {
-    public string protoName = "null";
-
+    public string protoName { get; set; } = "null";
     /**
      * 协议格式为 
      * varlen struct Message {
@@ -22,24 +21,27 @@ public class BaseMsg
      */
     public static byte[] Encode(BaseMsg baseMsg)
     {
-        string s = JsonSerializer.Serialize(baseMsg);
-        return System.Text.Encoding.UTF8.GetBytes(s);
+        return JsonSerializer.SerializeToUtf8Bytes(baseMsg, baseMsg.GetType());
     }
 
     /**
      * 将解码后的结果反串行化成 BaseMsg
-     * @params protoName 协议名
+     * @generic <T> 协议类
      * @params bytes 原字节流
      * @params offset 从 bytes[offset] 的位置开始解释JSON
      * @params count 到 bytes[offset + count] 的位置停止解释JSON
      */
-    public static BaseMsg Decode(string protoName, byte[] bytes, int offset, int count)
+    public static BaseMsg? Decode<T>(byte[] bytes, int offset, int count) where T : BaseMsg
     {
         string s = System.Text.Encoding.UTF8.GetString(bytes, offset, count);
         Console.WriteLine("Debug decode: " + s);
 
-        // ! 标记 not null 以避免 Warning
-        BaseMsg baseMsg = (BaseMsg)JsonSerializer.Deserialize(s, Type.GetType(protoName)!)!;
+        BaseMsg? baseMsg = null;
+        try {
+            baseMsg = (BaseMsg)JsonSerializer.Deserialize<T>(s)!;
+        } catch (Exception e) {
+            Console.WriteLine("Error while decode JSON: " + e.ToString());
+        } 
         return baseMsg;
     }
 
@@ -48,9 +50,9 @@ public class BaseMsg
      * @params BaseMsg 待发送消息
      * @return bytes 串行化后的 协议名长度 + 协议名 构成的 byte array
      */
-    public static byte[] EncodeName(BaseMsg BaseMsg)
+    public static byte[] EncodeName(BaseMsg baseMsg)
     {
-        byte[] nameBytes = System.Text.Encoding.UTF8.GetBytes(BaseMsg.protoName);
+        byte[] nameBytes = System.Text.Encoding.UTF8.GetBytes(baseMsg.protoName);
         Int16 len = (Int16)nameBytes.Length;
 
         byte[] bytes = new byte[2 + len];
@@ -91,5 +93,3 @@ public class BaseMsg
         return name;
     }
 }
-
-

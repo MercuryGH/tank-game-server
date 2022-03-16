@@ -4,15 +4,15 @@ using System;
 using MySql.Data.MySqlClient;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+
 using db.dao;
 
-public class DbManager
+public static class DbManager
 {
-    public static MySqlConnection conn;
+    public static MySqlConnection conn = new MySqlConnection();
 
     public static bool Connect(string db, string ip, int port, string user, string pw)
     {
-        conn = new MySqlConnection();
         // 连接参数
         string s = string.Format("Database={0}; Data Source={1}; port={2}; User Id={3}; Password={4}",
                            db, ip, port, user, pw);
@@ -46,7 +46,7 @@ public class DbManager
         }
         catch (Exception e)
         {
-            Console.WriteLine("[DB] CheckAndReconnect fail " + e.Message);
+            Console.WriteLine("[DB] CheckAndReconnect failed " + e.Message);
         }
     }
 
@@ -56,8 +56,7 @@ public class DbManager
         return !Regex.IsMatch(str, @"[-|;|,|\/|\(|\)|\[|\]|\}|\{|%|@|\*|!|\']");
     }
 
-    //是否存在该用户
-    public static bool ExistAccount(string id)
+    public static bool ExistAccountId(string id)
     {
         CheckAndReconnect();
         if (!DbManager.IsSafeString(id))
@@ -65,16 +64,14 @@ public class DbManager
             return false;
         }
 
-        //sql语句
         string s = string.Format("select * from account where id = '{0}';", id);
-        //查询
         try
         {
             MySqlCommand cmd = new MySqlCommand(s, conn);
             MySqlDataReader dataReader = cmd.ExecuteReader();
             bool hasRows = dataReader.HasRows;
             dataReader.Close();
-            return !hasRows;
+            return hasRows;
         }
         catch (Exception e)
         {
@@ -91,13 +88,12 @@ public class DbManager
             Console.WriteLine("[DB] Register fail, id or pw not safe");
             return false;
         }
-
-        if (!ExistAccount(id))
+        if (ExistAccountId(id))
         {
             Console.WriteLine("[DB] Register fail, id exist");
             return false;
         }
-        
+
         string sql = string.Format("insert into account set id ='{0}', pw ='{1}';", id, pw);
         try
         {
@@ -112,21 +108,25 @@ public class DbManager
         }
     }
 
-    public static bool CreatePlayer(string id)
+    // 注册时调用，向 player 表中添加一条记录
+    public static bool RegisterPlayer(string id)
     {
         CheckAndReconnect();
-        //防sql注入
         if (!DbManager.IsSafeString(id))
         {
             Console.WriteLine("[DB] CreatePlayer fail, id not safe");
             return false;
         }
-        //序列化
-        // PlayerData playerData = new PlayerData();
-        // string data = Js.Serialize(playerData);
-        //写入DB
-        // string sql = string.Format("insert into player set id ='{0}' ,data ='{1}';", id, data);
-        string sql = "123";
+
+        if (ExistAccountId(id))
+        {
+            Console.WriteLine("[DB] Register fail, id exist");
+            return false;
+        }
+
+        Player playerData = new Player();
+        string info = JsonSerializer.Serialize(playerData);
+        string sql = string.Format("insert into player set id = '{0}', info = '{1}';", id, info);
         try
         {
             MySqlCommand cmd = new MySqlCommand(sql, conn);
@@ -140,25 +140,16 @@ public class DbManager
         }
     }
 
-
-    //检测用户名密码
-    public static bool CheckPassword(string id, string pw)
+    public static bool CheckIdAndPw(string id, string pw)
     {
         CheckAndReconnect();
-        //防sql注入
-        if (!DbManager.IsSafeString(id))
+        if (!DbManager.IsSafeString(id) || !DbManager.IsSafeString(pw))
         {
-            Console.WriteLine("[DB] CheckPassword fail, id not safe");
+            Console.WriteLine("[DB] CheckPassword fail, id or pw not safe");
             return false;
         }
-        if (!DbManager.IsSafeString(pw))
-        {
-            Console.WriteLine("[DB] CheckPassword fail, pw not safe");
-            return false;
-        }
-        //查询
-        string sql = string.Format("select * from account where id='{0}' and pw='{1}';", id, pw);
 
+        string sql = string.Format("select * from account where id = '{0}' and pw = '{1}';", id, pw);
         try
         {
             MySqlCommand cmd = new MySqlCommand(sql, conn);
@@ -174,23 +165,19 @@ public class DbManager
         }
     }
 
-
-    //获取玩家数据
-    public static Player GetPlayerData(string id)
+    // 获取玩家数据
+    public static Player? GetPlayerInfo(string id)
     {
         CheckAndReconnect();
-        //防sql注入
         if (!DbManager.IsSafeString(id))
         {
             Console.WriteLine("[DB] GetPlayerData fail, id not safe");
             return null;
         }
 
-        //sql
-        string sql = string.Format("select * from player where id ='{0}';", id);
+        string sql = string.Format("select info from player where id = '{0}';", id);
         try
         {
-            //查询
             MySqlCommand cmd = new MySqlCommand(sql, conn);
             MySqlDataReader dataReader = cmd.ExecuteReader();
             if (!dataReader.HasRows)
@@ -198,12 +185,11 @@ public class DbManager
                 dataReader.Close();
                 return null;
             }
-            //读取
             dataReader.Read();
-            string data = dataReader.GetString("data");
-            //反序列化
-            // Player playerData = Js.Deserialize<Player>(data);
-            Player playerData = new Player();
+            string info = dataReader.GetString("info");
+
+            // 反序列化
+            Player playerData = JsonSerializer.Deserialize<Player>(info)!;
 
             dataReader.Close();
             return playerData;
@@ -215,17 +201,12 @@ public class DbManager
         }
     }
 
-
-    //保存角色
+    // 更新玩家数据
     public static bool UpdatePlayerData(string id, Player playerData)
     {
         CheckAndReconnect();
-        //序列化
-        // string data = Js.Serialize(playerData);
-        //sql
-        // string sql = string.Format("update player set data='{0}' where id ='{1}';", data, id);
-        string sql = "";
-        //更新
+        string info = JsonSerializer.Serialize(playerData);
+        string sql = string.Format("update player set info = '{0}' where id = '{1}';", info, id);
         try
         {
             MySqlCommand cmd = new MySqlCommand(sql, conn);

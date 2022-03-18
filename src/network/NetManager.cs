@@ -9,6 +9,7 @@ using System.Reflection;
 using network.model;
 using network.util;
 using network.protocol;
+using network.model.util;
 
 public static class NetManager
 {
@@ -20,7 +21,7 @@ public static class NetManager
     private static List<Socket> checkReads = new List<Socket>(); // Select的检查列表
 
     public const long pingInterval = 30; // 30s 不 ping 则认为掉线
-    private const string PROTOCOL_NAMESPACE_PREFIX = "network.protocol.";
+    private const string NETWORK_PROTOCOL_NAMESPACE_PREFIX = "network.protocol.";
 
     // 服务端不使用 receiveQueue 暂存接收结果，这是因为服务端会进行 busy select，而非客户端固定每帧处理几条接收的消息
 
@@ -43,16 +44,16 @@ public static class NetManager
             // 检查可读对象
             foreach (Socket s in checkReads)
             {
-                if (s == listenfd)
+                if (s == listenfd) // 尝试 accept socket
                 {
                     ReadListenfd(s);
                 }
-                else
+                else // 尝试读取 client socket 
                 {
                     ReadClientfd(s);
                 }
             }
-            Timer(); // 计时，由于Select设置超时时间为 1000ms，所以每秒调用一次
+            Timer(); // 计时，由于Select设置超时时间为 1000ms，所以至多每秒调用一次
         }
     }
 
@@ -87,7 +88,7 @@ public static class NetManager
         }
     }
 
-    // 关闭 Socket 连接
+    // 主动关闭 Socket 连接
     public static void Close(ClientState state)
     {
         network.util.EventHandler.OnDisconnect(state);
@@ -115,6 +116,12 @@ public static class NetManager
         if (readBuff.RemainSize <= 0)
         {
             Console.WriteLine("Receive fail, message to long!!!");
+
+            // 服务器炸了
+            MsgKick msgKick = new MsgKick();
+            msgKick.reason = 2;
+            Send(state, msgKick);
+
             Close(state);
             return;
         }
@@ -150,7 +157,7 @@ public static class NetManager
         readBuff.CheckAndMoveBytes();
     }
 
-    //数据处理
+    // 数据处理
     public static void ReceiveDataFrom(ClientState state)
     {
         ByteBuffer readBuff = state.readBuff;
@@ -175,6 +182,12 @@ public static class NetManager
         if (protoName == "")
         {
             Console.WriteLine("OnReceiveData MsgBase. DecodeName failed");
+
+            // 发送特殊的踢下线协议
+            MsgKick msgKick = new MsgKick();
+            msgKick.reason = 1;
+            Send(state, msgKick);
+
             Close(state);
             return;
         }
@@ -185,25 +198,42 @@ public static class NetManager
         if (bodyCount <= 0)
         {
             Console.WriteLine("OnReceiveData fail, bodyCount <= 0");
+
+            // 发送特殊的踢下线协议
+            MsgKick msgKick = new MsgKick();
+            msgKick.reason = 1;
+            Send(state, msgKick);
+
             Close(state);
             return;
         }
 
         MethodInfo decodeMethod = typeof(BaseMsg).GetMethod(nameof(BaseMsg.Decode))!;
-        MethodInfo genericMethod = decodeMethod.MakeGenericMethod(Type.GetType(PROTOCOL_NAMESPACE_PREFIX + protoName)!);
+        MethodInfo genericMethod = decodeMethod.MakeGenericMethod(Type.GetType(NETWORK_PROTOCOL_NAMESPACE_PREFIX + protoName)!);
         BaseMsg msg = (BaseMsg)genericMethod.Invoke(null, new object[] { readBuff.bytes, readBuff.readIdx, bodyCount })!;
         readBuff.readIdx += bodyCount;
         readBuff.CheckAndMoveBytes();
         if (msg == null) // 译码出了什么问题
         { 
+            Console.WriteLine("Cannot decode Message, OMG");
+
+            // 发送特殊的踢下线协议
+            MsgKick msgKick = new MsgKick();
+            msgKick.reason = 1;
+            Send(state, msgKick);
+
             Close(state);
             return;
         }
 
         // 分发消息
-        MethodInfo mi = typeof(MsgHandler).GetMethod(PROTOCOL_NAMESPACE_PREFIX + protoName)!;
+        MethodInfo mi = typeof(MsgHandler).GetMethod(protoName)!;
         object[] o = { state, msg };
-        Console.WriteLine("Receive " + protoName);
+
+        // Debug
+        if (protoName != "MsgSyncTank")
+            Console.WriteLine("Receive " + protoName);
+
         if (mi != null)
         {
             mi.Invoke(null, o);

@@ -39,8 +39,8 @@ public class Room
         },
     };
 
-    // private bool isTrainingRoom = false; // 是否为训练房 (TODO: implements it)
-    
+    private bool isTrainingRoom = false; // 是否为训练房 (TODO: implements it)
+
     private long lastJudgeWinLoseTime = 0; // 上一次判断胜负的时间
     private const long JUDGE_WINLOSE_INTERVAL = 5; // 两次判断胜负的时间间隔
 
@@ -68,11 +68,8 @@ public class Room
             Console.WriteLine("room.AddPlayer fail, already in this room");
             return false;
         }
-        // 加入列表
-        playerIds[id] = true; // playerIds.insert(id);
-
         // 自动分配阵营，设置房间id
-        battlePlayer.camp = AutoSetTeam();
+        battlePlayer.team = AutoSetTeam();
         battlePlayer.roomId = this.id;
 
         // 设置房主
@@ -80,9 +77,14 @@ public class Room
         {
             ownerId = battlePlayer.id;
         }
-        // 广播
+
+        // 加入玩家集合
+        // TODO: 并发控制（可能在同一时间有很多人加入房间）
+        playerIds[id] = true; // playerIds.insert(id);
+
         BaseMsg broadCastedRoomInfo = GenerateGetRoomInfoMsg();
-        Broadcast(broadCastedRoomInfo);
+        BroadcastExceptPlayer(broadCastedRoomInfo, id);
+
         return true;
     }
 
@@ -94,9 +96,11 @@ public class Room
         foreach (string id in playerIds.Keys)
         {
             BattlePlayer player = BattlePlayerManager.GetPlayerById(id)!;
-            if (player.camp == 1) { count1++; }
-            if (player.camp == 2) { count2++; }
+            if (player.team == 1) { count1++; }
+            if (player.team == 2) { count2++; }
         }
+
+        Console.WriteLine("DEBUG: " + count1 + " " + count2);
 
         // 选择人数少的阵营。若人数一致，则选择阵营1
         if (count1 <= count2)
@@ -132,7 +136,7 @@ public class Room
         }
 
         playerIds.Remove(id); // playerIds.remove(id)
-        player.camp = 0;
+        player.team = 0;
         player.roomId = -1;
 
         // 自动设置房主
@@ -140,6 +144,13 @@ public class Room
         {
             ownerId = AutoSwitchOwner();
         }
+
+        // 退出后，房间为空
+        if (playerIds.Count == 0)
+        {
+            RoomManager.RemoveRoom(this.id);
+        }
+
         // 战斗状态退出
         if (status == Status.IN_BATTLE)
         {
@@ -148,18 +159,17 @@ public class Room
             msg.id = player.id;
             Broadcast(msg);
         }
-        // 房间为空
-        if (playerIds.Count == 0)
+        else // 非状态战斗退出
         {
-            RoomManager.RemoveRoom(this.id);
+            // 对除了退出者的全体玩家广播
+            BaseMsg broadCastedRoomInfo = GenerateGetRoomInfoMsg();
+            BroadcastExceptPlayer(broadCastedRoomInfo, id);
         }
-        // 广播
-        BaseMsg broadCastedRoomInfo = GenerateGetRoomInfoMsg();
-        Broadcast(broadCastedRoomInfo);
+
         return true;
     }
 
-    //选择房主
+    // 选择房主
     public string AutoSwitchOwner()
     {
         // 选择第一个玩家
@@ -172,7 +182,7 @@ public class Room
     }
 
 
-    //广播消息
+    // 广播消息
     public void Broadcast(BaseMsg msg)
     {
         foreach (string id in playerIds.Keys)
@@ -182,11 +192,24 @@ public class Room
         }
     }
 
+    // 除了 exceptId，广播消息
+    public void BroadcastExceptPlayer(BaseMsg msg, string exceptId)
+    {
+        foreach (string id in playerIds.Keys)
+        {
+            if (id == exceptId)
+            {
+                continue;
+            }
+            BattlePlayer battlePlayer = BattlePlayerManager.GetPlayerById(id)!;
+            battlePlayer.SendToSocket(msg);
+        }
+    }
+
     // 生成 MsgGetRoomInfo 协议
     public BaseMsg GenerateGetRoomInfoMsg()
     {
-        MsgGetRoomInfo msg = new MsgGetRoomInfo();
-        msg.players = new PlayerInfo[playerIds.Count];
+        MsgGetRoomInfo msg = new MsgGetRoomInfo(playerIds.Count);
 
         int i = 0;
         foreach (string id in playerIds.Keys)
@@ -195,16 +218,16 @@ public class Room
 
             PlayerInfo playerInfo = new PlayerInfo();
             playerInfo.id = battlePlayer.id;
-            playerInfo.team = battlePlayer.camp;
+            playerInfo.team = battlePlayer.team;
             playerInfo.win = battlePlayer.playerData.win;
-            playerInfo.lost = battlePlayer.playerData.lose;
+            playerInfo.lose = battlePlayer.playerData.lose;
             playerInfo.isOwner = 0;
             if (isOwner(battlePlayer))
             {
                 playerInfo.isOwner = 1;
             }
 
-            msg.players[i] = playerInfo;
+            msg.players![i] = playerInfo;
             i++;
         }
         return msg;
@@ -225,21 +248,23 @@ public class Room
         foreach (string id in playerIds.Keys)
         {
             BattlePlayer player = BattlePlayerManager.GetPlayerById(id)!;
-            if (player.camp == 1) { count1++; }
+            if (player.team == 1) { count1++; }
             else { count2++; }
         }
         //每个队伍至少要有1名玩家
         if (count1 < 1 || count2 < 1)
         {
+            isTrainingRoom = true;
             return false;
         }
+        isTrainingRoom = false;
         return true;
     }
 
     // 根据传来的玩家索引 index，初始化 battlePlayer 的位置（出生点）
     private void SetBirthPos(BattlePlayer battlePlayer, int index)
     {
-        int camp = battlePlayer.camp;
+        int camp = battlePlayer.team;
 
         battlePlayer.x = birthConfig[camp - 1, index, 0];
         battlePlayer.y = birthConfig[camp - 1, index, 1];
@@ -253,7 +278,7 @@ public class Room
     private TankInfo PlayerToTankInfo(BattlePlayer player)
     {
         TankInfo tankInfo = new TankInfo();
-        tankInfo.camp = player.camp;
+        tankInfo.team = player.team;
         tankInfo.id = player.id;
         tankInfo.hp = player.hp;
 
@@ -276,7 +301,7 @@ public class Room
         foreach (string id in playerIds.Keys)
         {
             BattlePlayer player = BattlePlayerManager.GetPlayerById(id)!;
-            if (player.camp == 1)
+            if (player.team == 1)
             {
                 SetBirthPos(player, count1);
                 count1++;
@@ -302,16 +327,16 @@ public class Room
 
         ResetPlayers();
 
-        BaseMsg msg = GenerateEnterBattleMsg();
+        const int mapId = 1; // 目前只有一个地图，硬编码mapId
+
+        BaseMsg msg = GenerateEnterBattleMsg(mapId);
         Broadcast(msg);
         return true;
     }
 
-    private BaseMsg GenerateEnterBattleMsg()
+    private BaseMsg GenerateEnterBattleMsg(int mapId)
     {
-        MsgEnterBattle msg = new MsgEnterBattle();
-        msg.mapId = 1;
-        msg.tanks = new TankInfo[playerIds.Count];
+        MsgEnterBattle msg = new MsgEnterBattle(playerIds.Count, 1);
 
         // 组装数据包
         int i = 0;
@@ -358,13 +383,13 @@ public class Room
         foreach (string id in playerIds.Keys)
         {
             BattlePlayer player = BattlePlayerManager.GetPlayerById(id)!;
-            if (player.camp == winCamp) { player.playerData.win++; }
+            if (player.team == winCamp) { player.playerData.win++; }
             else { player.playerData.lose++; }
         }
 
         // 发送 Result
         MsgBattleResult msg = new MsgBattleResult();
-        msg.winCamp = winCamp;
+        msg.winTeam = winCamp;
         Broadcast(msg);
     }
 
@@ -382,11 +407,11 @@ public class Room
             BattlePlayer player = BattlePlayerManager.GetPlayerById(id)!;
             if (!IsDie(player))
             {
-                if (player.camp == 1) { count1++; };
-                if (player.camp == 2) { count2++; };
+                if (player.team == 1) { count1++; };
+                if (player.team == 2) { count2++; };
             }
         }
-        //判断
+
         if (count1 <= 0)
         {
             return 2;

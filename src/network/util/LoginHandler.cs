@@ -11,14 +11,16 @@ public static partial class MsgHandler
     public static void MsgRegister(ClientState c, BaseMsg msgBase)
     {
         MsgRegister msg = (MsgRegister)msgBase;
-        if (DbManager.Register(msg.id, msg.pw))
+
+        int flag = DbManager.Register(msg.id, msg.pw);
+        if (flag == 0)
         {
             DbManager.RegisterPlayer(msg.id);
             msg.result = 0;
         }
-        else
+        else 
         {
-            msg.result = 1;
+            msg.result = flag;
         }
         NetManager.Send(c, msg); // response
     }

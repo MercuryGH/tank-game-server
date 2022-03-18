@@ -11,6 +11,11 @@ public static class DbManager
 {
     public static MySqlConnection conn = new MySqlConnection();
 
+    public static JsonSerializerOptions options = new(JsonSerializerDefaults.General)
+    {
+        IncludeFields = true
+    };
+
     public static bool Connect(string db, string ip, int port, string user, string pw)
     {
         // 连接参数
@@ -80,18 +85,18 @@ public static class DbManager
         }
     }
 
-    public static bool Register(string id, string pw)
+    public static int Register(string id, string pw)
     {
         CheckAndReconnect();
         if (!IsSafeString(id) || !IsSafeString(pw))
         {
-            Console.WriteLine("[DB] Register fail, id or pw not safe");
-            return false;
+            Console.WriteLine("[DB] Register failed, id or pw not safe");
+            return 2;
         }
         if (ExistAccountId(id))
         {
-            Console.WriteLine("[DB] Register fail, id exist");
-            return false;
+            Console.WriteLine("[DB] Register failed, id exist");
+            return 1;
         }
 
         string sql = string.Format("insert into account set id ='{0}', pw ='{1}';", id, pw);
@@ -99,12 +104,12 @@ public static class DbManager
         {
             MySqlCommand cmd = new MySqlCommand(sql, conn);
             cmd.ExecuteNonQuery();
-            return true;
+            return 0;
         }
         catch (Exception e)
         {
             Console.WriteLine("[DB] Register failed " + e.Message);
-            return false;
+            return 3;
         }
     }
 
@@ -114,18 +119,19 @@ public static class DbManager
         CheckAndReconnect();
         if (!DbManager.IsSafeString(id))
         {
-            Console.WriteLine("[DB] CreatePlayer fail, id not safe");
+            Console.WriteLine("[DB] CreatePlayer failed, id not safe");
             return false;
         }
 
-        if (ExistAccountId(id))
+        // 确保 player 的 id 存在于 account （因此MySQL表声明中不必添加外键）
+        if (ExistAccountId(id) == false)
         {
-            Console.WriteLine("[DB] Register fail, id exist");
+            Console.WriteLine("[DB] Register player failed, id not exist");
             return false;
         }
 
         Player playerData = new Player();
-        string info = JsonSerializer.Serialize(playerData);
+        string info = JsonSerializer.Serialize(playerData, options);
         string sql = string.Format("insert into player set id = '{0}', info = '{1}';", id, info);
         try
         {
@@ -145,7 +151,7 @@ public static class DbManager
         CheckAndReconnect();
         if (!DbManager.IsSafeString(id) || !DbManager.IsSafeString(pw))
         {
-            Console.WriteLine("[DB] CheckPassword fail, id or pw not safe");
+            Console.WriteLine("[DB] CheckPassword failed, id or pw not safe");
             return false;
         }
 
@@ -171,7 +177,7 @@ public static class DbManager
         CheckAndReconnect();
         if (!DbManager.IsSafeString(id))
         {
-            Console.WriteLine("[DB] GetPlayerData fail, id not safe");
+            Console.WriteLine("[DB] GetPlayerData failed, id not safe");
             return null;
         }
 
@@ -189,14 +195,14 @@ public static class DbManager
             string info = dataReader.GetString("info");
 
             // 反序列化
-            Player playerData = JsonSerializer.Deserialize<Player>(info)!;
+            Player playerData = JsonSerializer.Deserialize<Player>(info, options)!;
 
             dataReader.Close();
             return playerData;
         }
         catch (Exception e)
         {
-            Console.WriteLine("[DB] GetPlayerData fail, " + e.Message);
+            Console.WriteLine("[DB] GetPlayerData failed, " + e.Message);
             return null;
         }
     }
@@ -205,7 +211,7 @@ public static class DbManager
     public static bool UpdatePlayerData(string id, Player playerData)
     {
         CheckAndReconnect();
-        string info = JsonSerializer.Serialize(playerData);
+        string info = JsonSerializer.Serialize(playerData, options);
         string sql = string.Format("update player set info = '{0}' where id = '{1}';", info, id);
         try
         {

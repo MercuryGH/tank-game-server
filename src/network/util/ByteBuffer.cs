@@ -4,7 +4,7 @@ using System;
 
 public class ByteBuffer
 {
-    private const int DEFAULT_SIZE = 1024;
+    private const int DEFAULT_SIZE = 4096;
 
     public byte[] bytes;
 

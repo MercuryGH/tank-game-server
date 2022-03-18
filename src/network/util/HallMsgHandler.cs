@@ -6,24 +6,47 @@ using network.protocol;
 
 public static partial class MsgHandler
 {
-    // 获取房间信息
-    public static void MsgGetRoomInfo(ClientState c, BaseMsg msgBase)
+    // 创建房间
+    public static void MsgCreateRoom(ClientState c, BaseMsg msgBase)
     {
-        MsgGetRoomInfo msg = (MsgGetRoomInfo)msgBase;
+        MsgCreateRoom msg = (MsgCreateRoom)msgBase;
         BattlePlayer? player = c.battlePlayer;
         if (player == null)
         {
             return;
         }
 
-        Room? room = RoomManager.GetRoom(player.roomId);
-        if (room == null)
+        // 已经在房间里
+        if (player.roomId >= 0)
         {
-            player.SendToSocket(msg); // send null
+            msg.result = 1; // 创建失败
+            player.SendToSocket(msg);
+            return;
+        }
+        Room room = RoomManager.AddRoom();
+        bool flag = room.AddPlayer(player.id);
+        if (flag == false)
+        {
+            msg.result = 1; // 创建失败
+            player.SendToSocket(msg);
             return;
         }
 
-        player.SendToSocket(room.GenerateGetRoomInfoMsg());
+        msg.result = 0;
+        player.SendToSocket(msg);
+    }
+
+    // 请求房间列表
+    public static void MsgGetRoomList(ClientState c, BaseMsg msgBase)
+    {
+        MsgGetRoomList msg = (MsgGetRoomList)msgBase;
+        BattlePlayer? player = c.battlePlayer;
+        if (player == null)
+        {
+            return;
+        }
+
+        player.SendToSocket(RoomManager.GenerateGetRoomListMsg());
     }
 
     // 离开房间
@@ -45,43 +68,6 @@ public static partial class MsgHandler
         }
 
         room.RemovePlayer(player.id);
-        msg.result = 0;
-        player.SendToSocket(msg);
-    }
-
-    // 请求开始战斗
-    public static void MsgStartBattle(ClientState c, BaseMsg msgBase)
-    {
-        MsgStartBattle msg = (MsgStartBattle)msgBase;
-        BattlePlayer? player = c.battlePlayer;
-        if (player == null)
-        {
-            return;
-        }
-
-        Room? room = RoomManager.GetRoom(player.roomId);
-        if (room == null)
-        {
-            msg.result = 1;
-            player.SendToSocket(msg);
-            return;
-        }
-
-        if (!room.isOwner(player)) // 是否是房主
-        {
-            msg.result = 1;
-            player.SendToSocket(msg);
-            return;
-        }
-
-        bool flag = room.StartBattle();
-        if (flag == false) // 开战失败
-        {
-            msg.result = 1;
-            player.SendToSocket(msg);
-            return;
-        }
-
         msg.result = 0;
         player.SendToSocket(msg);
     }

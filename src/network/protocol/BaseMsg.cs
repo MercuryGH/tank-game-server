@@ -19,9 +19,21 @@ public class BaseMsg
      * 没有考虑长度等其他信息，还需要编码成协议格式才能发送
      * TODO: 封装编码方法
      */
+
+    public static JsonSerializerOptions options = new(JsonSerializerDefaults.General)
+    {
+        IncludeFields = true
+    };  // System.Text.Json 默认居然是不串行化字段的，坑
+
     public static byte[] Encode(BaseMsg baseMsg)
     {
-        return JsonSerializer.SerializeToUtf8Bytes(baseMsg, baseMsg.GetType());
+        // Debug only
+        if (baseMsg.GetType() != typeof(MsgSyncTank))
+        {
+            Console.WriteLine("Debug encode: " + JsonSerializer.Serialize(baseMsg, baseMsg.GetType(), options));
+        }
+
+        return JsonSerializer.SerializeToUtf8Bytes(baseMsg, baseMsg.GetType(), options);
     }
 
     /**
@@ -34,14 +46,22 @@ public class BaseMsg
     public static BaseMsg? Decode<T>(byte[] bytes, int offset, int count) where T : BaseMsg
     {
         string s = System.Text.Encoding.UTF8.GetString(bytes, offset, count);
-        Console.WriteLine("Debug decode: " + s);
 
         BaseMsg? baseMsg = null;
-        try {
-            baseMsg = (BaseMsg)JsonSerializer.Deserialize<T>(s)!;
-        } catch (Exception e) {
+        try
+        {
+            baseMsg = (BaseMsg)JsonSerializer.Deserialize<T>(s, options)!;
+
+            // DEBUG only
+            if (baseMsg.GetType() != typeof(MsgSyncTank))
+            {
+                Console.WriteLine("Debug encode: " + s);
+            }
+        }
+        catch (Exception e)
+        {
             Console.WriteLine("Error while decode JSON: " + e.ToString());
-        } 
+        }
         return baseMsg;
     }
 

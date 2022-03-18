@@ -41,8 +41,7 @@ public static class RoomManager
     // 生成 MsgGetRoomList 协议
     public static BaseMsg GenerateGetRoomListMsg()
     {
-        MsgGetRoomList msg = new MsgGetRoomList();
-        msg.rooms = new RoomInfo[rooms.Count];
+        MsgGetRoomList msg = new MsgGetRoomList(rooms.Count);
 
         int i = 0;
         foreach (Room room in rooms.Values)
@@ -52,13 +51,13 @@ public static class RoomManager
             roomInfo.count = room.playerIds.Count;
             roomInfo.status = (int)room.status; // 枚举类型转 int
 
-            msg.rooms[i] = roomInfo;
+            msg.rooms![i] = roomInfo;
             i++;
         }
         return msg;
     }
 
-    // 每秒调用一次，判断有战况的房间的获胜情况
+    // 至多每秒调用一次，判断有战况的房间的获胜情况
     public static void Update()
     {
         foreach (Room room in rooms.Values)

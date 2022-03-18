@@ -6,6 +6,8 @@ using System;
 
 using db.util;
 using network.model.util;
+using network.protocol;
+using network;
 
 public static partial class EventHandler
 {
@@ -33,7 +35,7 @@ public static partial class EventHandler
         }
     }
 
-    // 定时任务，由 NetManager 每秒调用一次
+    // 定时任务，由 NetManager 至多每秒调用一次
     public static void OnTimer()
     {
         CheckPing();
@@ -51,6 +53,12 @@ public static partial class EventHandler
             if (timeNow - s.lastPingTime > NetManager.pingInterval)
             {
                 Console.WriteLine("Ping Close " + s.socket.RemoteEndPoint!.ToString());
+
+                // 发送特殊的踢下线协议
+                MsgKick msgKick = new MsgKick();
+                msgKick.reason = 3;
+                NetManager.Send(s, msgKick);
+
                 NetManager.Close(s);
                 return;
             }

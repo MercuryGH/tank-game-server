@@ -26,7 +26,7 @@ public class BattlePlayer
 
     
     public int roomId = -1; // 所在房间的 id。若值为 -1，则不在房间里
-    public int camp = 1; // 阵营
+    public int team = 1; // 阵营
     public int hp = 100; // 坦克生命值
 
     // 指向该 BattlePlayer 的 dao

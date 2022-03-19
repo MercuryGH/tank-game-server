@@ -2,7 +2,7 @@
 
 参考《Unity3D网络游戏实战》（第二版）制作的游戏Demo。
 
-相比[原书籍提供的示例代码](https://github.com/luopeiyu/unity_net_book)，本仓库做了符合本人编码习惯的彻底重构，仅供学习参考使用。
+相比[原书籍提供的示例代码](https://github.com/luopeiyu/unity_net_book)，本仓库做了符合本人编码习惯的彻底重构，以及不少新功能的添加，仅供学习参考使用。
 
 这里是服务端Git仓库，客户端位于[此处](https://github.com/MercuryGH/tank-game-client)。
 

@@ -1,3 +1,5 @@
+-- MySQL建数据库 + 表语句
+
 create database tank_game;
 
 -- 玩家账号

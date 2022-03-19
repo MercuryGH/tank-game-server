@@ -24,8 +24,6 @@ namespace GameServer
             {
                 return;
             }
-            // bool status = DbManager.Register("testId", "1234");
-            // TestDb();
 
             NetManager.StartLoop(PORT);
         }

@@ -108,7 +108,7 @@ public static class NetManager
 
         // 缓冲区不够，清除，若依旧不够，只能返回
         // 当单条协议超过缓冲区长度时会发生
-        if (readBuff.RemainSize <= 0)
+        if (readBuff.RemainSize <= 0 || readBuff.writeIdx > ByteBuffer.MAX_WRITE_INDEX)
         {
             ReceiveDataFrom(state);
             readBuff.MoveBytes();

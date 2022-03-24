@@ -5,6 +5,7 @@ using System;
 public class ByteBuffer
 {
     private const int DEFAULT_SIZE = 4096;
+    public const int MAX_WRITE_INDEX = 16777216; // 临时加的，避免write_index溢出
 
     public byte[] bytes;
 

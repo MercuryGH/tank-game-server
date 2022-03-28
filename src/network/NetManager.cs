@@ -178,8 +178,8 @@ public static class NetManager
         readBuff.readIdx += 2;
 
         // 解析协议名
-        string protoName = BaseMsg.DecodeName(readBuff.bytes, readBuff.readIdx, out int nameCount);
-        if (protoName == "")
+        string? protoName = BaseMsg.DecodeName(readBuff.bytes, readBuff.readIdx, out int nameCount);
+        if (protoName == null || protoName == "")
         {
             Console.WriteLine("OnReceiveData MsgBase. DecodeName failed");
 

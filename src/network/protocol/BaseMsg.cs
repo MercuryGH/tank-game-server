@@ -45,11 +45,10 @@ public class BaseMsg
      */
     public static BaseMsg? Decode<T>(byte[] bytes, int offset, int count) where T : BaseMsg
     {
-        string s = System.Text.Encoding.UTF8.GetString(bytes, offset, count);
-
         BaseMsg? baseMsg = null;
         try
         {
+            string s = System.Text.Encoding.UTF8.GetString(bytes, offset, count);
             baseMsg = (BaseMsg)JsonSerializer.Deserialize<T>(s, options)!;
 
             // DEBUG only
@@ -92,7 +91,7 @@ public class BaseMsg
      * @return 协议名 msgType
      * @return_by_out count = sizeof(short) + len(msgType)
      */
-    public static string DecodeName(byte[] bytes, int offset, out int count)
+    public static string? DecodeName(byte[] bytes, int offset, out int count)
     {
         count = 0;
         // 边界情况考虑，避免数组越界
@@ -109,7 +108,12 @@ public class BaseMsg
         }
 
         count = 2 + len;
-        string name = System.Text.Encoding.UTF8.GetString(bytes, offset + 2, len);
+        string? name = null;
+        try {
+            name = System.Text.Encoding.UTF8.GetString(bytes, offset + 2, len);
+        } catch (Exception e) {
+            Console.WriteLine("Error while decode JSON: " + e.ToString());
+        }
         return name;
     }
 }

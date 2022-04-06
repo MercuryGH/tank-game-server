@@ -40,6 +40,19 @@ public static class NetManager
 
             // 轮询，只查是否可读，超时时间为 1000ms
             Socket.Select(checkReads, null, null, 1000);
+            /**
+            If you are in a listening state, readability 
+            means that a call to Accept will succeed 
+            without blocking. If you have already 
+            accepted the connection, readability 
+            means that data is available for reading. 
+            In these cases, all receive operations 
+            will succeed without blocking. Readability 
+            can also indicate whether the remote Socket 
+            has shut down the connection; in that case 
+            a call to Receive will return immediately, 
+            with zero bytes returned.
+            */
 
             // 检查可读对象
             foreach (Socket s in checkReads)
@@ -115,7 +128,7 @@ public static class NetManager
         };
         if (readBuff.RemainSize <= 0)
         {
-            Console.WriteLine("Receive fail, message to long!!!");
+            Console.WriteLine("Receive failed, message is too long!!!");
 
             // 服务器炸了
             MsgKick msgKick = new MsgKick();
@@ -209,7 +222,19 @@ public static class NetManager
         }
 
         MethodInfo decodeMethod = typeof(BaseMsg).GetMethod(nameof(BaseMsg.Decode))!;
-        MethodInfo genericMethod = decodeMethod.MakeGenericMethod(Type.GetType(NETWORK_PROTOCOL_NAMESPACE_PREFIX + protoName)!);
+        Type? genericType = Type.GetType(NETWORK_PROTOCOL_NAMESPACE_PREFIX + protoName);
+        if (genericType == null) {
+            Console.WriteLine("Cannot decode Message, OMG");
+
+            // 发送特殊的踢下线协议
+            MsgKick msgKick = new MsgKick();
+            msgKick.reason = 1;
+            Send(state, msgKick);
+
+            Close(state);
+            return;            
+        }
+        MethodInfo genericMethod = decodeMethod.MakeGenericMethod(genericType);
         BaseMsg msg = (BaseMsg)genericMethod.Invoke(null, new object[] { readBuff.bytes, readBuff.readIdx, bodyCount })!;
         readBuff.readIdx += bodyCount;
         readBuff.CheckAndMoveBytes();

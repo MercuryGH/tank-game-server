@@ -5,6 +5,8 @@
 
 # shell
 *.sh
+# log
+*.log
 
 # User-specific files
 *.rsuser

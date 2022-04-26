@@ -111,6 +111,8 @@ public class BaseMsg
         string? name = null;
         try {
             name = System.Text.Encoding.UTF8.GetString(bytes, offset + 2, len);
+        } catch (ArgumentOutOfRangeException e) {
+            Console.WriteLine("Argument Error while decode JSON: " + e.ToString());
         } catch (Exception e) {
             Console.WriteLine("Error while decode JSON: " + e.ToString());
         }

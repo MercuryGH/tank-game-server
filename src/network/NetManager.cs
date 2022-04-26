@@ -9,7 +9,6 @@ using System.Reflection;
 using network.model;
 using network.util;
 using network.protocol;
-using network.model.util;
 
 public static class NetManager
 {
@@ -161,6 +160,14 @@ public static class NetManager
             Console.WriteLine("Closing null clientfd" + e.ToString());
             return;
         }
+        catch (ArgumentOutOfRangeException e)
+        {
+            Console.WriteLine("ArgumentOutOfRangeException: " + e.ToString());
+        } 
+        catch (Exception e)
+        {
+            Console.WriteLine("Unknown Exception: " + e.ToString());
+        }
 
         // 消息处理
         readBuff.writeIdx += count;
@@ -223,7 +230,8 @@ public static class NetManager
 
         MethodInfo decodeMethod = typeof(BaseMsg).GetMethod(nameof(BaseMsg.Decode))!;
         Type? genericType = Type.GetType(NETWORK_PROTOCOL_NAMESPACE_PREFIX + protoName);
-        if (genericType == null) {
+        if (genericType == null)
+        {
             Console.WriteLine("Cannot decode Message, OMG");
 
             // 发送特殊的踢下线协议
@@ -232,14 +240,14 @@ public static class NetManager
             Send(state, msgKick);
 
             Close(state);
-            return;            
+            return;
         }
         MethodInfo genericMethod = decodeMethod.MakeGenericMethod(genericType);
         BaseMsg msg = (BaseMsg)genericMethod.Invoke(null, new object[] { readBuff.bytes, readBuff.readIdx, bodyCount })!;
         readBuff.readIdx += bodyCount;
         readBuff.CheckAndMoveBytes();
         if (msg == null) // 译码出了什么问题
-        { 
+        {
             Console.WriteLine("Cannot decode Message, OMG");
 
             // 发送特殊的踢下线协议
